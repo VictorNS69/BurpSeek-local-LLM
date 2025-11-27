@@ -94,7 +94,7 @@ class BurpExtender(IBurpExtender, IContextMenuFactory, ITab, IMessageEditorContr
         self._tab_highlight_listener_added = False
 
         self.api_key = ""
-        #self._load_api_key_from_disk()
+        self._load_api_key_from_disk()
         self.default_prompt = (
             "Analyze this HTTP request/response focusing ONLY on potential vulnerabilities. "
             "Look for suspicious endpoints, possible IDOR, or any exposed secrets like API keys. "
@@ -290,26 +290,24 @@ class BurpExtender(IBurpExtender, IContextMenuFactory, ITab, IMessageEditorContr
         )
 
         payload = {
-            "model": 'deepseek-r1:8b',#"deepseek-chat",
-            "prompt": u"{}\n\n{}".format(prompt_content, data_text),
-            #"messages": [
-            #    {"role": "system", "content": system_text},
-            #    {"role": "user", "content": u"{}\n\n{}".format(prompt_content, data_text)}
-            #],
-            "think": False,
+            "model": "deepseek-chat",
+            "messages": [
+                {"role": "system", "content": system_text},
+                {"role": "user", "content": u"{}\n\n{}".format(prompt_content, data_text)}
+            ],
             "stream": False
         }
 
         try:
             req_data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-            host = "192.168.193.1" #"api.deepseek.com"
-            port = 11434 #443
-            use_https = False #True
+            host = "api.deepseek.com"
+            port = 443
+            use_https = True
 
             headers = [
-                "POST /api/generate HTTP/1.1",
+                "POST /chat/completions HTTP/1.1",
                 "Host: {}".format(host),
-                #"Authorization: Bearer {}".format(self.api_key),
+                "Authorization: Bearer {}".format(self.api_key),
                 "Content-Type: application/json",
                 "Content-Length: {}".format(len(req_data)),
                 "Connection: close"
@@ -321,17 +319,12 @@ class BurpExtender(IBurpExtender, IContextMenuFactory, ITab, IMessageEditorContr
             response_body = raw_response[response_info.getBodyOffset():]
             response_json = json.loads(self._helpers.bytesToString(response_body))
 
-            if "response" in response_json and len(response_json["response"]) > 0:
-                analysis_text = response_json["response"]
-                self._log_to_output("inside 'if'\n---\n" + analysis_text)
+            if "choices" in response_json and len(response_json["choices"]) > 0:
+                analysis_text = response_json["choices"][0]["message"]["content"]
                 self._notify_new_issue()
-            #if "choices" in response_json and len(response_json["choices"]) > 0:
-            #   analysis_text = response_json["choices"][0]["message"]["content"]
-            #   self._notify_new_issue()
             else:
                 analysis_text = "No analysis received from DeepSeek! Check the API response for errors"
                 self._log_to_output("Error: No analysis received from DeepSeek")
-                self._log_to_output("outside 'if'\n---\n" + analysis_text)
 
             self.response_editor.setMessage(to_unicode(analysis_text).encode("utf-8"), False)
             self._create_issue_in_burp(message_info, analysis_text.replace("\n", "<br>"))
@@ -453,4 +446,3 @@ class BurpExtender(IBurpExtender, IContextMenuFactory, ITab, IMessageEditorContr
 
     def getResponse(self):
         return self._current_message.getResponse() if self._current_message else None
-

@@ -1,0 +1,8 @@
+# WIP
+
+- remove API code
+- add variable for deepseek model
+- add variable for IP and port
+- Update Readme
+
+
